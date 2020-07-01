@@ -1,0 +1,54 @@
+---
+ - hosts: dataroom
+   gather_facts: no
+   vars_files:
+   - /home/deb10/vaulted_vars.yml
+   become: yes
+   tasks:
+    - name: ask netq version
+      shell: dpkg -l netq-agent | grep ii
+      register: netqversion
+
+    - name:  show netq-agent version
+      debug:
+        var: netqversion
+
+    - name: show netq-latest in sources.list
+      shell: grep netq-latest /etc/apt/sources.list
+      register: netqlatestapt
+
+    - name:  show netq-agent in sources.list
+      debug:
+        var: netqlatestapt
+#
+# possible need to uncomment in /etc/apt/sources.list
+# #deb  http://apps3.cumulusnetworks.com/repos/deb/ CumulusLinux-4 netq-latest
+# for now just add the same line if #deb ... is found
+#
+    - name: put netq-latest in sources.list if needed
+      shell: |
+        echo deb  http://apps3.cumulusnetworks.com/repos/deb/ CumulusLinux-4 netq-latest >> /etc/apt/sources.list
+      when: netqlatestapt.stdout.find('#deb') != -1
+
+    - name: cry woolf if outdated netqueue
+      shell: |
+          wget -qO - https://apps3.cumulusnetworks.com/setup/cumulus-apps-deb.pubkey | sudo apt-key add
+          apt-get update
+          apt-get -y upgrade
+      when: netqversion.stdout.find('2.4') != -1
+      register: aptlog
+
+    - name: show aptlog
+      debug:
+        var: aptlog
+
+    - name: configure netq-agent
+      shell: |
+         netq config add agent server 10.10.10.10 vrf mgmt
+         netq config restart agent
+      register: configagent
+
+    - name: show configlog
+      debug:
+        var: configagent
+
